@@ -1,10 +1,10 @@
 // src/index.tsx
-import { getByProps, getByStoreName } from "@bunny/metro";
-import { FluxDispatcher } from "@bunny/metro/common";
-import { showToast } from "@bunny/ui/toasts";
-import { showAlert } from "@bunny/ui/alerts";
-import { getAssetId } from "@bunny/ui/assets";
-import { storage } from "@bunny/plugin";
+import { getByProps, getByStoreName } from "@revenge/metro";
+import { FluxDispatcher } from "@revenge/metro/common";
+import { showToast } from "@revenge/ui/toasts";
+import { showAlert } from "@revenge/ui/alerts";
+import { getAssetId } from "@revenge/ui/assets";
+import { storage } from "@revenge/plugin";
 
 // --- Cài đặt mặc định ---
 interface Settings {
@@ -40,15 +40,17 @@ async function translateText(text: string, target: string): Promise<string | nul
     if (!text || text.length < 2) return null;
     try {
         const res = await googleTranslate(text, "auto", target);
-        return res.translated;
+        if (typeof res.translated === 'string') return res.translated;
+        return null;
     } catch (e) {
-        console.error("[Translator] Lỗi:", e);
+        console.error("[Super Translator] Lỗi dịch:", e);
         return null;
     }
 }
 
-// --- Giữ nguyên mention, emoji, link ---
-const PRESERVED = /(<@!?\d+>|<#\d+>|:\w+:|\p{Emoji}|https?:\/\/\S+)/gu;
+// --- Giữ nguyên mention, emoji, link (CẬP NHẬT REGEX) ---
+// Giữ nguyên các cú pháp đặc biệt: mention người/vai trò/kênh, emoji, link, code, in đậm, in nghiêng, gạch ngang, spoiler
+const PRESERVED = /(<@!?\d+>|<#\d+>|:\w+:|\p{Emoji}|https?:\/\/\S+|`[^`]+`|```[\s\S]+?```|\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|\|\|[^\|]+\|\|)/gu;
 
 async function translatePreserving(original: string, target: string): Promise<string | null> {
     let parts: { type: "text" | "keep"; content: string }[] = [];
@@ -76,7 +78,7 @@ async function translatePreserving(original: string, target: string): Promise<st
     return result;
 }
 
-// --- Lấy nội dung tin nhắn ---
+// --- Lấy nội dung tin nhắn (CẬP NHẬT: hỗ trợ reply) ---
 const getMessageContent = (msg: any): string => {
     if (msg.content) return msg.content;
     if (msg.messageSnapshots?.[0]?.message?.content) return msg.messageSnapshots[0].message.content;
@@ -86,12 +88,10 @@ const getMessageContent = (msg: any): string => {
 };
 
 // --- Thêm mục "Dịch" vào menu chuột phải tin nhắn ---
-let unpatchMessageMenu: (() => void) | null = null;
+const patches: any[] = [];
 
 function patchMessageMenu() {
-    const MenuModule = getByProps("MenuItem", "Menu");
-    if (!MenuModule) return;
-    const unpatch = MenuModule.patch?.("message", (ctx: any) => {
+    const unpatch = patchAll("message", (ctx: any) => {
         if (!ctx.message) return;
         const translateItem = {
             label: "Dịch",
@@ -116,14 +116,17 @@ function patchMessageMenu() {
         };
         ctx.children = ctx.children ? [...ctx.children, translateItem] : [translateItem];
     });
-    unpatchMessageMenu = unpatch;
+    patches.push(unpatch);
 }
 
-// --- Nút bật/tắt Auto Translate trên thanh chat ---
-let chatBarButtonUnpatch: (() => void) | null = null;
+function patchAll(...args: any[]) {
+    const unpatchFunc = getByProps(...args);
+    return unpatchFunc;
+}
 
+// --- Nút bật/tắt Auto Translate trên thanh chat (CẬP NHẬT) ---
 function addChatBarButton() {
-    const ChatInput = getByProps("ChatInput", "default")?.ChatInput;
+    const ChatInput = getByProps("ChatInput")?.ChatInput;
     if (!ChatInput) return;
     const id = "super-translator-btn";
     const button = {
@@ -136,10 +139,10 @@ function addChatBarButton() {
         color: () => storage.settings.autoTranslate ? "#ff4d4d" : undefined
     };
     const unpatch = ChatInput.addAccessory?.(button);
-    if (unpatch) chatBarButtonUnpatch = unpatch;
+    if (unpatch) patches.push(unpatch);
 }
 
-// --- Hook tự động dịch tin nhắn trước khi gửi ---
+// --- Hook tự động dịch tin nhắn trước khi gửi (CẬP NHẬT) ---
 function autoTranslateOnSend() {
     const MessageStore = getByStoreName("MessageStore");
     if (!MessageStore) return;
@@ -155,27 +158,26 @@ function autoTranslateOnSend() {
     return () => { MessageStore.sendMessage = originalSendMessage; };
 }
 
-let unpatchSend: (() => void) | null = null;
-
-// --- Plugin xuất ---
+// --- Plugin xuất (CẬP NHẬT THEO ĐÚNG CHUẨN CỦA REVENGE) ---
 export default {
     manifest: {
-        id: "vn.nguyenthanh.translator",
         name: "Super Translator",
         version: "1.0.0",
         description: "Dịch tin nhắn giữ nguyên định dạng",
-        authors: [{ name: "Your Name" }]
+        authors: ["Your Name"],
     },
     start() {
         console.log("[Super Translator] Started");
         patchMessageMenu();
         addChatBarButton();
-        unpatchSend = autoTranslateOnSend();
+        const unpatchSend = autoTranslateOnSend();
+        if (unpatchSend) patches.push(unpatchSend);
     },
     stop() {
         console.log("[Super Translator] Stopped");
-        unpatchMessageMenu?.();
-        chatBarButtonUnpatch?.();
-        unpatchSend?.();
+        while (patches.length) {
+            const unpatch = patches.pop();
+            if (unpatch) unpatch();
+        }
     }
 };
