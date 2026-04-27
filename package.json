@@ -1,0 +1,19 @@
+{
+  "name": "kettu-translator",
+  "version": "1.0.0",
+  "description": "Plugin dịch thuật cho Kettu",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -cw"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/react": "^18.2.79",
+    "@types/react-native": "^0.72.8",
+    "rollup": "^4.13.0",
+    "typescript": "^5.4.3"
+  }
+}
