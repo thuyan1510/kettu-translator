@@ -1,0 +1,12 @@
+{
+  "id": "vn.tunam.translator",
+  "name": "Super Translator",
+  "version": "1.0.0",
+  "description": "Dịch tin nhắn Discord, giữ nguyên mentions, emoji, markdown",
+  "author": {
+    "name": "Tú Nam",
+    "id": "1269877185926398030"
+  },
+  "entry": "dist/index.js",
+  "type": "plugin"
+}
